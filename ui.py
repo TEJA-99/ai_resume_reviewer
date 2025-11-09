@@ -1,6 +1,6 @@
 import streamlit as st
 import requests
-import json
+import plotly.graph_objects as go
 
 # --- CONFIG ---
 st.set_page_config(page_title="AI Resume Reviewer", page_icon="🤖", layout="wide")
@@ -10,107 +10,131 @@ API_URL = "https://ai-resume-reviewer-xuom.onrender.com/analyze_resume"
 # --- HEADER ---
 st.markdown(
     """
-    <h1 style='text-align:center; color:#2b7ce9;'>🤖 AI Resume Reviewer</h1>
-    <p style='text-align:center; font-size:18px; color:gray;'>
-        Upload your resume to get instant AI-driven feedback, ATS score & improvement tips.
-    </p>
-    <hr>
+    <style>
+    .main-title {
+        text-align: center;
+        font-size: 48px;
+        color: #2b7ce9;
+        font-weight: 700;
+        margin-bottom: -10px;
+    }
+    .sub-title {
+        text-align: center;
+        font-size: 18px;
+        color: #555;
+        margin-bottom: 40px;
+    }
+    .card {
+        background: rgba(255, 255, 255, 0.85);
+        border-radius: 18px;
+        padding: 25px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        margin-top: 20px;
+    }
+    footer {visibility: hidden;}
+    </style>
+    <h1 class="main-title">🤖 AI Resume Reviewer</h1>
+    <p class="sub-title">Get instant AI feedback, ATS score, and tailored improvement tips.</p>
     """,
     unsafe_allow_html=True
 )
 
 # --- FILE UPLOAD ---
-uploaded = st.file_uploader("📄 Choose your resume", type=["pdf", "docx", "txt"])
+uploaded = st.file_uploader("📄 Choose your resume file", type=["pdf", "docx", "txt"])
 
-if uploaded is not None:
+if uploaded:
     with st.spinner("Analyzing your resume... ⏳"):
         files = {"file": (uploaded.name, uploaded.getvalue(), uploaded.type)}
         res = requests.post(API_URL, files=files)
 
     if res.status_code == 200:
         data = res.json()
-
         if "error" in data:
             st.error(data["error"])
         else:
-            # --- ATS SCORE CARD ---
             ats_score = int(data.get("ats_score", 0))
-            if ats_score >= 80:
-                score_color = "🟢 Excellent"
-            elif ats_score >= 60:
-                score_color = "🟡 Average"
-            else:
-                score_color = "🔴 Needs Work"
 
-            st.markdown(
-                f"""
-                <div style='background-color:#f9fafc; padding:20px; border-radius:12px;
-                            box-shadow:0 2px 6px rgba(0,0,0,0.1); margin-top:20px;'>
-                    <h3 style='color:#2b7ce9;'>🎯 ATS Compatibility Score</h3>
-                    <div style='font-size:20px;'><b>{ats_score}</b>/100 — {score_color}</div>
-                </div>
-                """,
-                unsafe_allow_html=True,
+            # --- CIRCULAR ATS SCORE GAUGE ---
+            gauge = go.Figure(
+                go.Indicator(
+                    mode="gauge+number",
+                    value=ats_score,
+                    title={'text': "ATS Compatibility", 'font': {'size': 24}},
+                    gauge={
+                        'axis': {'range': [0, 100]},
+                        'bar': {'color': "#2b7ce9"},
+                        'steps': [
+                            {'range': [0, 50], 'color': "#f9dada"},
+                            {'range': [50, 80], 'color': "#fff3cd"},
+                            {'range': [80, 100], 'color': "#d4edda"},
+                        ],
+                    },
+                    domain={'x': [0, 1], 'y': [0, 1]},
+                )
             )
-            st.progress(ats_score / 100)
+            st.plotly_chart(gauge, use_container_width=True)
 
             # --- SUMMARY CARD ---
             if "summary" in data:
                 st.markdown(
                     f"""
-                    <div style='background-color:#ffffff; padding:20px; border-radius:12px;
-                                box-shadow:0 2px 6px rgba(0,0,0,0.08); margin-top:20px;'>
+                    <div class="card">
                         <h3 style='color:#2b7ce9;'>🧾 Summary</h3>
-                        <p style='font-size:16px;'>{data['summary']}</p>
+                        <p>{data['summary']}</p>
                     </div>
                     """,
                     unsafe_allow_html=True,
                 )
 
-            # --- STRENGTHS & IMPROVEMENTS IN TWO COLUMNS ---
+            # --- STRENGTHS & IMPROVEMENTS ---
             col1, col2 = st.columns(2)
             with col1:
-                st.markdown(
-                    "<h3 style='color:#2b7ce9;'>💪 Strengths</h3>",
-                    unsafe_allow_html=True,
-                )
+                st.markdown("<div class='card'><h3 style='color:#2b7ce9;'>💪 Strengths</h3>", unsafe_allow_html=True)
                 for s in data.get("strengths", []):
                     st.success(f"✅ {s}")
+                st.markdown("</div>", unsafe_allow_html=True)
 
             with col2:
-                st.markdown(
-                    "<h3 style='color:#2b7ce9;'>⚠️ Improvements</h3>",
-                    unsafe_allow_html=True,
-                )
+                st.markdown("<div class='card'><h3 style='color:#2b7ce9;'>⚠️ Improvements</h3>", unsafe_allow_html=True)
                 for i in data.get("improvements", []):
                     st.warning(f"🔹 {i}")
+                st.markdown("</div>", unsafe_allow_html=True)
 
             # --- MISSING KEYWORDS ---
             if "missing_keywords" in data:
                 st.markdown(
                     f"""
-                    <div style='background-color:#fff9e6; padding:20px; border-radius:12px;
-                                box-shadow:0 2px 6px rgba(0,0,0,0.08); margin-top:20px;'>
+                    <div class="card" style='background:#fff8e1;'>
                         <h3 style='color:#d97706;'>🔑 Missing Keywords</h3>
-                        <p>{", ".join(data["missing_keywords"])}</p>
+                        <p>{", ".join(data['missing_keywords'])}</p>
                     </div>
                     """,
                     unsafe_allow_html=True,
                 )
 
-            # --- OVERALL RATING ---
+            # --- RATING CARD ---
             if "rating" in data:
                 rating = data["rating"]
                 st.markdown(
                     f"""
-                    <div style='background-color:#f0f9ff; padding:20px; border-radius:12px;
-                                box-shadow:0 2px 6px rgba(0,0,0,0.08); margin-top:20px;'>
+                    <div class="card" style='background:#e7f3ff;'>
                         <h3 style='color:#2b7ce9;'>⭐ Overall Rating</h3>
-                        <p style='font-size:18px;'><b>{rating}</b> / 10</p>
+                        <h2>{rating}/10</h2>
                     </div>
                     """,
                     unsafe_allow_html=True,
                 )
+
+            # --- FOOTER ---
+            st.markdown(
+                """
+                <hr>
+                <p style='text-align:center; color:gray; font-size:14px;'>
+                © 2025 AI Resume Reviewer | Built by Teja with ❤️ and OpenAI
+                </p>
+                """,
+                unsafe_allow_html=True,
+            )
 
     else:
         st.error(f"❌ API Error: {res.status_code}")
