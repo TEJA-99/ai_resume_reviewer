@@ -3,7 +3,7 @@ import requests
 import json
 
 # --- CONFIG ---
-API_URL = "http://127.0.0.1:8000/analyze_resume"   # later: replace with Render URL
+API_URL = "https://ai-resume-reviewer-xuom.onrender.com/analyze_resume"   # later: replace with Render URL
 
 st.set_page_config(page_title="AI Resume Reviewer", page_icon="📄", layout="wide")
 st.title("📄 AI Resume Reviewer & ATS Score Analyzer")
